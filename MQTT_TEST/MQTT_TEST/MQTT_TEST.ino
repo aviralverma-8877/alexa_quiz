@@ -3,6 +3,8 @@
 #include <AsyncMqttClient.h>              //Async MQTT Library
 //needed for library
 #include <ESP8266WebServer.h>
+#include <ESP8266mDNS.h>
+#include <ESP8266HTTPUpdateServer.h>
 #include <DNSServer.h>
 #include <WiFiManager.h>          //https://github.com/tzapu/WiFiManager
 #include <Ticker.h>                       //Ticker for running multithread
@@ -18,6 +20,7 @@ Ticker TickerForTestMessage;
 Ticker TickerForCheckInput;
 
 String chipid = String(ESP.getChipId());
+String host = chipid+"-webupdate";
 String intopic = chipid+"-in";
 String s = "";
 
@@ -38,6 +41,9 @@ String mqtt_output = "garage-x-controller-output";
 String mqtt_input = intopic.c_str();
 
 WiFiManager wifiManager;
+ESP8266WebServer httpServer(80);
+ESP8266HTTPUpdateServer httpUpdater;
+
 String action, serialInput;
 
 void configModeCallback (WiFiManager *myWiFiManager) 
@@ -66,6 +72,12 @@ void setup()
   mqtt.setServer(MQTT_HOST, MQTT_PORT);
   connectToMqtt();
   TickerForconnectToMqtt.attach_ms(10000, connectToMqtt);
+  MDNS.begin(host);
+
+  httpUpdater.setup(&httpServer);
+  httpServer.begin();
+
+  MDNS.addService("http", "tcp", 80);
 }
 
 void onMqttConnect(bool sessionPresent) 
@@ -77,7 +89,7 @@ void onMqttConnect(bool sessionPresent)
 
 void onMqttSubscribe(uint16_t packetId, uint8_t qos) 
 {
-  serialDisplay("device", "Status", "Ready To Pair");
+  serialDisplay("", "Hostname", host);
 }
 
 void onMqttDisconnect(AsyncMqttClientDisconnectReason reason) 
@@ -163,6 +175,7 @@ void serialDisplay(String icon, String head, String body)
   for(int i=0; i<data.length(); i++)
   {
     Serial.print(data[i]);
+    delay(10);
   }
   Serial.println();
   delay(10);
@@ -221,4 +234,6 @@ void checkInput()
 }
 
 void loop() {
+  httpServer.handleClient();
+  MDNS.update();
 }
