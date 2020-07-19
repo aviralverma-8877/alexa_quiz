@@ -20,7 +20,7 @@ Ticker TickerForTestMessage;
 Ticker TickerForCheckInput;
 
 String chipid = String(ESP.getChipId());
-String host = chipid+"-webupdate";
+String host = chipid+"-remote";
 String intopic = chipid+"-in";
 String s = "";
 
@@ -44,11 +44,11 @@ WiFiManager wifiManager;
 ESP8266WebServer httpServer(80);
 ESP8266HTTPUpdateServer httpUpdater;
 
-String action, serialInput;
+String action;
 
 void configModeCallback (WiFiManager *myWiFiManager) 
 {
-  serialDisplay("wifi", "Access Point", "Garage X Quiz");
+  serialDisplay("wifi", "Connect To", "IoT Remote");
 }
 
 
@@ -63,7 +63,7 @@ void setup()
   delay(1000);
   wifiManager.setDebugOutput(false); 
   wifiManager.setAPCallback(configModeCallback);
-  wifiManager.autoConnect("Garage X Quiz");
+  wifiManager.autoConnect("IoT Remote");
   mqtt.onConnect(onMqttConnect);
   mqtt.onDisconnect(onMqttDisconnect);
   mqtt.onSubscribe(onMqttSubscribe);
@@ -84,12 +84,12 @@ void onMqttConnect(bool sessionPresent)
 {
   mqtt.subscribe(mqtt_input.c_str(), 2);
   TickerForTestMessage.attach_ms(5000, send_test_msg);
-  TickerForCheckInput.attach_ms(10, checkInput);
+  TickerForCheckInput.attach_ms(50, checkInput);
 }
 
 void onMqttSubscribe(uint16_t packetId, uint8_t qos) 
 {
-  serialDisplay("", "Hostname", host);
+  serialDisplay("", "Visit", host+".local");
 }
 
 void onMqttDisconnect(AsyncMqttClientDisconnectReason reason) 
@@ -143,11 +143,11 @@ void onMqttMessage(char* topic, char* payload, AsyncMqttClientMessageProperties 
   }
   else if(action == "done")
   {
-    serialDisplay("done", conv(root["head"]), conv(root["body"]));
+    serialDisplay("on", conv(root["head"]), conv(root["body"]));
   }
   else if(action == "failed")
   {
-    serialDisplay("failed", conv(root["head"]), conv(root["body"]));
+    serialDisplay("off", conv(root["head"]), conv(root["body"]));
   }
   else if(action == "print")
   {
@@ -170,66 +170,79 @@ void serialDisplay(String icon, String head, String body)
   root["icon"] = icon;
   root["head"] = head;
   root["body"] = body;
-  String data = "";
-  serializeJson(root, data);
-  for(int i=0; i<data.length(); i++)
-  {
-    Serial.print(data[i]);
-    delay(10);
-  }
+  serializeJson(root, Serial);
   Serial.println();
-  delay(10);
 }
 
 void checkInput()
 {
   if(Serial.available())
   {
-    serialInput = "";
-    serialInput = Serial.readStringUntil('\n');
+    String sInput = "";
+    char r;
+    while(Serial.available())
+    {
+      r = Serial.read();
+      sInput += r;
+    }
+    sInput.trim();
     Serial.flush();
-    serialInput.trim();
-
-    StaticJsonDocument<1000> root;
-    root["c"] = chipid;
-    String output = "";
-    if(serialInput == "Left Top")
-    { 
-      root["a"] = "bn_press";
-      root["v"] = 1;
-      serializeJsonPretty(root, output);
-    }
-    else if(serialInput == "Right Top")
+    StaticJsonDocument<200> jsonBuffer;
+    DeserializationError error = deserializeJson(jsonBuffer, sInput);
+    if (error) 
     {
-      root["a"] = "bn_press";
-      root["v"] = 2;
-      serializeJsonPretty(root, output);
+      return;
     }
-    else if(serialInput == "Left Bottom")
+    action = conv(jsonBuffer["a"]);
+    if(action == "btn_pressed")
     {
-      root["a"] = "bn_press";
-      root["v"] = 3;
-      serializeJsonPretty(root, output);
+      String serialInput = "";
+      serialInput = conv(jsonBuffer["b"]);
+      StaticJsonDocument<200> root;
+      root["c"] = chipid;
+      String output = "";
+      if(serialInput == "Left Top")
+      { 
+        root["a"] = "bn_press";
+        root["v"] = 1;
+        serializeJsonPretty(root, output);
+      }
+      else if(serialInput == "Right Top")
+      {
+        root["a"] = "bn_press";
+        root["v"] = 2;
+        serializeJsonPretty(root, output);
+      }
+      else if(serialInput == "Left Bottom")
+      {
+        root["a"] = "bn_press";
+        root["v"] = 3;
+        serializeJsonPretty(root, output);
+      }
+      else if(serialInput == "Right Bottom")
+      {
+        root["a"] = "bn_press";
+        root["v"] = 4;
+        serializeJsonPretty(root, output);
+      }
+      else if(serialInput == "Start")
+      {
+        root["a"] = "bn_press";
+        root["v"] = 0;
+        serializeJsonPretty(root, output);
+      }
+      else if(serialInput == "Select")
+      {
+        root["a"] = "bn_press";
+        root["v"] = -1;
+        serializeJsonPretty(root, output);
+      }
+      mqtt.publish(mqtt_output.c_str(), 2, false, output.c_str(), output.length());
     }
-    else if(serialInput == "Right Bottom")
+    else
     {
-      root["a"] = "bn_press";
-      root["v"] = 4;
-      serializeJsonPretty(root, output);
+      Serial.print("Comparison Error");
     }
-    else if(serialInput == "Start")
-    {
-      root["a"] = "bn_press";
-      root["v"] = 0;
-      serializeJsonPretty(root, output);
-    }
-    else if(serialInput == "Select")
-    {
-      root["a"] = "bn_press";
-      root["v"] = -1;
-      serializeJsonPretty(root, output);
-    }
-    mqtt.publish(mqtt_output.c_str(), 2, false, output.c_str(), output.length());
   }
 }
 
