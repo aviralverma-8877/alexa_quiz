@@ -29,7 +29,7 @@ void setup() {
   hx1230Fill(0);      // erase display memory
   hx1230SetContrast(15);
   Serial.begin(115200);
-  lcdDisplay("", "WiFi", "Remote", true);
+  lcdDisplay("WiFi", "Remote");
   pinMode(bkled, OUTPUT);
   digitalWrite(bkled, HIGH);
   delay(1000);
@@ -45,56 +45,79 @@ void loop() {
   if(Serial.available())
   {
     serialData = "";
-    serialData = Serial.readString();
-    Serial.flush();
+    char r;
+    delay(10);
+    while(Serial.available())
+    {
+      r = Serial.read();
+      serialData += r;
+    }
     serialData.trim();
-    DeserializationError error = deserializeJson(doc, serialData);
+    Serial.flush();
+    StaticJsonDocument<200> jsonBuffer;
+    DeserializationError error = deserializeJson(jsonBuffer, serialData);
     if (error) {
       return;
     }
-    icon = conv(doc["icon"]);
-    head = conv(doc["head"]);
-    body = conv(doc["body"]);
-    lcdDisplay(icon, head, body, false);
+    icon = conv(jsonBuffer["icon"]);
+    head = conv(jsonBuffer["head"]);
+    body = conv(jsonBuffer["body"]);
+    lcdDisplay(String(head), String(body));
   }
-  if(digitalRead(BTN5) == HIGH)
+  StaticJsonDocument<200> jsonBuffer;
+  if(digitalRead(BTN1) == HIGH)
   {
     if(lastPin != 1)
     {
       lastPin = 1;
-      Serial.println("Start");
-    }
-  }
-  else if(digitalRead(BTN4) == HIGH)
-  {
-    if(lastPin != 2)
-    {
-      lastPin = 2;
-      Serial.println("Right Bottom");
+      jsonBuffer["a"] = "btn_pressed";
+      jsonBuffer["b"] = "Left Top";
+      serializeJson(jsonBuffer, Serial);
+      Serial.println();
     }
   }
   else if(digitalRead(BTN2) == HIGH)
   {
+    if(lastPin != 2)
+    {
+      lastPin = 2;
+      jsonBuffer["b"] = "Right Top";
+      jsonBuffer["a"] = "btn_pressed";
+      serializeJson(jsonBuffer, Serial);
+      Serial.println();
+    }
+  }
+  else if(digitalRead(BTN3) == HIGH)
+  {
     if(lastPin != 3)
     {
       lastPin = 3;
-      Serial.println("Right Top");
+      jsonBuffer["b"] = "Left Bottom";
+      jsonBuffer["a"] = "btn_pressed";
+      serializeJson(jsonBuffer, Serial);
+      Serial.println();
     }
   }  
-  else if(digitalRead(BTN3) == HIGH)
+  else if(digitalRead(BTN4) == HIGH)
   {
     if(lastPin != 4)
     {
       lastPin = 4;
-      Serial.println("Left Bottom");
+      jsonBuffer["b"] = "Right Bottom";
+      jsonBuffer["a"] = "btn_pressed";
+      serializeJson(jsonBuffer, Serial);
+      Serial.println();
     }
   }
-  else if(digitalRead(BTN1) == HIGH)
+  else if(digitalRead(BTN5) == HIGH)
   {
     if(lastPin != 5)
     {
       lastPin = 5;
-      Serial.println("Left Top");
+      jsonBuffer["b"] = "Select";
+      jsonBuffer["a"] = "btn_pressed";
+      serializeJson(jsonBuffer, Serial);
+      Serial.println();
     }
   }
   else
@@ -105,28 +128,30 @@ void loop() {
 }
 
 
-void lcdDisplay(String icon, String head, String body, bool blank)
+void lcdDisplay(String head, String body)
 { 
   hx1230Fill(0);
-  hx1230WriteString(4, 0, head.c_str(), FONT_SMALL, 0);
-  char r;
-  int i=0;
-  int row = 1;
-  String disp = "";
-  while(i<body.length())
+  hx1230WriteString(1, 0, head.c_str(), FONT_SMALL, 0);
+  if(body.length() > 14)
   {
-    r = body.c_str()[i];
-    if(isAlphaNumeric(r) || r=='.' || r=='-' || r=='+' || r==' ')
-      disp = disp + r;
-    if(r == '\n')
+    int row = 1;
+    for(int i=0; i<body.length(); i=i+15)
     {
-      hx1230WriteString(4, row, disp.c_str(), FONT_SMALL, 0);
+      String sub =  "";
+      char r;
+      for(int j=i; j < min((i+15),body.length()); j++)
+      {
+        r = body.c_str()[j];
+        sub += r;
+      }
+      hx1230WriteString(1, row, sub.c_str(), FONT_SMALL, 0);
       row++;
-      disp = "";    
     }
-    i++; 
   }
-  hx1230WriteString(4, row, disp.c_str(), FONT_SMALL, 0);
+  else
+  {
+    hx1230WriteString(1, 1, body.c_str(), FONT_SMALL, 0);
+  }
 }
 
 
