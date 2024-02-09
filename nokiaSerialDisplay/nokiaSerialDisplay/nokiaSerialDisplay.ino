@@ -333,9 +333,8 @@ byte h = 48;
 void setup() {
   Serial.begin(115200);
   display.begin();
-  display.setContrast(60);
+  display.setContrast(50);
   display.clearDisplay();   // clears the screen and buffer
-  lcdDisplay("logo", "", "", true);
   pinMode(5, OUTPUT);
   digitalWrite(5, HIGH);
   delay(1000);
@@ -344,6 +343,7 @@ void setup() {
   pinMode(BTN3, INPUT);
   pinMode(BTN4, INPUT);
   pinMode(BTN5, INPUT);
+  lcdDisplay("logo", "", "", true);
 }
 
 void loop() {
